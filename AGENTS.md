@@ -1,27 +1,84 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+## What this repo is
 
-> **Architecture in one line:** Issues live in a local Dolt database
-> (`.beads/dolt/`); cross-machine sync uses `bd dolt push/pull` (a
-> git-compatible protocol), stored under `refs/dolt/data` on your git
-> remote — separate from `refs/heads/*` where your code lives.
-> `.beads/issues.jsonl` is a passive export, not the wire protocol.
->
-> See [SYNC_CONCEPTS.md](https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md)
-> for the one-screen overview and anti-patterns (don't treat JSONL as the
-> source of truth; don't `bd import` during normal operation; don't
-> reach for third-party Dolt hosting before trying the default).
+A from-scratch GNU Emacs configuration, replacing Positron (a VS Code fork) as
+primary editor. The plan, build order and open decisions live in beads — start
+with `bd ready` and `bd list --status=open`; the rationale for settled choices
+is in closed `decision` beads. This file holds the working rules.
 
-## Quick Reference
+## Environment
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
+- macOS, Apple Silicon
+- Emacs from `emacs-plus` (Homebrew), native-comp enabled, 30.2 line
+- Loaded via `emacs --init-directory=~/.config/emacs` — the user's real
+  `~/.emacs.d` is a separate legacy config and is **off limits**
+- Homebrew, iTerm2, `rig` for R versions, `renv` for project libraries
+- Target workflow: R, Shiny, TypeScript, heavy git worktree use
+- The user also works on Posit Workbench (remote, browser sessions) — don't
+  assume a local GUI-only environment
+
+## Hard rules
+
+1. **Built-in before third-party.** `project.el` before projectile, `eglot`
+   before lsp-mode, `tab-bar` before workspace packages, `dired` before a file
+   tree, `use-package` (built in since 29) always. If you add a package,
+   state in one line what built-in facility was insufficient and why.
+2. **Every setting gets a why.** One-line comment above any non-obvious `setq`,
+   hook or keybinding. Check the docstring before writing it. Config without a
+   stated reason gets deleted.
+3. **No config frameworks.** No Doom, Spacemacs, Prelude, Crafted Emacs, no
+   copying large blocks from published configs. Small, understood, incremental.
+4. **Respect the layer order.** The build layers are sequential epics in beads
+   with blocking deps — `bd ready` shows what is unblocked. Don't add R tooling
+   while the completion layer is still unsettled. If asked for something out of
+   order, say so and confirm before proceeding.
+5. **Don't touch `~/.emacs.d`** or anything outside this repo and the configured
+   init directory.
+6. **Prefer deleting to adding.** The point of the rebuild is a smaller, better
+   understood config, not parity with Positron.
+
+## Verifying changes
+
+Never claim config works without running it. Available checks:
+
+```sh
+# byte-compile warnings — catches typos, unbound vars, bad arg counts
+emacs -Q -batch -f batch-byte-compile lisp/*.el
+
+# does the whole config load cleanly from a cold start?
+emacs --init-directory=/tmp/emacs-test -batch -l init.el
+
+# start a real session against the config
+emacs --init-directory=~/.config/emacs
 ```
+
+For anything with logic (worktree helpers, project detection, Shiny launching),
+write an ERT test and run it headless. Pure `setq` blocks don't need tests.
+
+Elisp gotchas worth remembering here: `lexical-binding: t` in every file header;
+`add-hook` with a lambda can't be removed cleanly — name the function; check
+whether a `defcustom` needs `:set` rather than plain assignment.
+
+## Conventions
+
+- `use-package` for every package, with `:defer` unless load order requires
+  otherwise
+- `no-littering` is active — write generated paths through it, not hardcoded
+- Keep `init.el` monolithic until it passes ~300 lines, then split into `lisp/`
+- Two-space indent, standard elisp style, `;;;` section headers
+- One commit per capability, imperative subject line, body says why not what.
+  Small commits matter here — `git bisect` is the primary debugging tool when a
+  package update breaks startup.
+
+## Working style
+
+- Be direct. Don't apologize. Don't pad.
+- Don't invent package names, function names or options — check the docstring,
+  the package's README, or say you're unsure.
+- If a request would add complexity the user will have to maintain, say so
+  before implementing it.
+- Ask before large refactors or before introducing a new dependency.
 
 ## Non-Interactive Shell Commands
 
@@ -103,26 +160,3 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
-<!-- BEGIN BEADS CODEX SETUP: generated by bd setup codex -->
-## Beads Issue Tracker
-
-Use Beads (`bd`) for durable task tracking in repositories that include it. Use the `beads` skill at `.agents/skills/beads/SKILL.md` (project install) or `~/.agents/skills/beads/SKILL.md` (global install) for Beads workflow guidance, then use the `bd` CLI for issue operations.
-
-### Quick Reference
-
-```bash
-bd ready                # Find available work
-bd show <id>            # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>           # Complete work
-bd prime                # Refresh Beads context
-```
-
-### Rules
-
-- Use `bd` for all task tracking; do not create markdown TODO lists.
-- Run `bd prime` when Beads context is missing or stale. Codex 0.129.0+ can load Beads context automatically through native hooks; use `/hooks` to inspect or toggle them.
-- Keep persistent project memory in Beads via `bd remember`; do not create ad hoc memory files.
-
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
-<!-- END BEADS CODEX SETUP -->
