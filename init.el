@@ -164,6 +164,48 @@
   ;; one-console-per-worktree habit from the inventory.
   (setq ess-ask-for-ess-directory nil))
 
+;; R version resolution (bead emacs-l82.4): renv.lock dictates the version,
+;; rig's default R is the fallback. Tested in tests/r-version-tests.el.
+
+(defun my/renv-lock-r-version (dir)
+  "Return the R version pinned by the renv.lock at or above DIR, else nil."
+  (when-let* ((root (locate-dominating-file dir "renv.lock")))
+    (condition-case nil
+        (with-temp-buffer
+          (insert-file-contents (expand-file-name "renv.lock" root))
+          (alist-get 'Version
+                     (alist-get 'R (json-parse-buffer :object-type 'alist))))
+      ;; A malformed lockfile means "no pin", not an error at R launch.
+      (error nil))))
+
+(defun my/rig-r-executable (version)
+  "Return rig's binary for VERSION (e.g. \"4.3.2\"), else nil.
+rig names binaries by major.minor, some with an -arm64 suffix
+(R-4.6, R-4.3-arm64) — try both."
+  (let ((majmin (if (string-match "\\`\\([0-9]+\\.[0-9]+\\)" version)
+                    (match-string 1 version)
+                  version)))
+    (seq-some #'executable-find
+              (list (concat "R-" majmin) (concat "R-" majmin "-arm64")))))
+
+;; Declared special before ESS loads so the let-binding below is dynamic
+;; even though this file is lexically bound.
+(defvar inferior-ess-r-program)
+
+(defun my/R--with-project-version (orig &rest args)
+  "Around-advice for `R': launch the renv.lock version when rig has it."
+  (let* ((version (my/renv-lock-r-version default-directory))
+         (program (and version (my/rig-r-executable version))))
+    (if program
+        (progn (message "R %s via %s (renv.lock)" version program)
+               (let ((inferior-ess-r-program program))
+                 (apply orig args)))
+      (when version
+        (message "renv.lock wants R %s but rig has no match; using default R"
+                 version))
+      (apply orig args))))
+(advice-add 'R :around #'my/R--with-project-version)
+
 ;; ace-window: M-o jumps to any window by home-row label (direct jump when
 ;; only two windows exist). Kept alongside windmove by explicit preference —
 ;; the key placement feels more natural than shifted arrows.
