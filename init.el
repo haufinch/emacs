@@ -155,6 +155,11 @@
   ;; one-console-per-worktree habit from the inventory.
   (setq ess-ask-for-ess-directory nil))
 
+;; Deliberate pane movement: shift+arrows jump focus to the window in that
+;; direction (built-in windmove) — no cycling. TRIAL: this shadows
+;; shift-selection; acceptable for a C-SPC mark user, revisit if missed.
+(windmove-default-keybindings)
+
 ;;; Keybinding trial
 
 ;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
