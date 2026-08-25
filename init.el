@@ -74,6 +74,16 @@
 ;; Recently opened files, for C-x C-r now and consult sources later.
 (recentf-mode 1)
 
+;; Land in a folder view of the launch directory instead of *scratch* —
+;; opening a project should show the project. Named function, not a lambda,
+;; so it can be advised or removed cleanly. Also applies to a bare
+;; emacsclient. Session restore (desktop-save-mode) deliberately deferred
+;; until its absence proves irritating (bead emacs-uaa.2).
+(defun my/initial-dired-buffer ()
+  "Return a dired buffer for the directory Emacs was launched in."
+  (dired-noselect default-directory))
+(setq initial-buffer-choice #'my/initial-dired-buffer)
+
 ;;; Keybinding trial
 
 ;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
