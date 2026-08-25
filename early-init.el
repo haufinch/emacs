@@ -17,6 +17,10 @@
 ;; management (or M-x), not by dragging a bar.
 (push '(undecorated-round . t) default-frame-alist)
 
+;; Start at max screen size — a maximized window, not macOS native
+;; fullscreen (no separate Space, title-bar-less frame stays put).
+(push '(fullscreen . maximized) default-frame-alist)
+
 ;; Font or theme changes should not resize the frame mid-session.
 (setq frame-inhibit-implied-resize t)
 
