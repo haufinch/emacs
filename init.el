@@ -164,11 +164,6 @@
   ;; one-console-per-worktree habit from the inventory.
   (setq ess-ask-for-ess-directory nil))
 
-;; Deliberate pane movement: shift+arrows jump focus to the window in that
-;; direction (built-in windmove) — no cycling. TRIAL: this shadows
-;; shift-selection; acceptable for a C-SPC mark user, revisit if missed.
-(windmove-default-keybindings)
-
 ;; ace-window: M-o jumps to any window by home-row label (direct jump when
 ;; only two windows exist). Kept alongside windmove by explicit preference —
 ;; the key placement feels more natural than shifted arrows.
@@ -178,11 +173,10 @@
   ;; Labels on the home row instead of the default number keys.
   (aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l)))
 
-;;; Keybinding trial
+;;; Keybindings
 
-;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
-;; for paragraph movement; standard Emacs is M-{ / M-}. Both stay live during
-;; the soak so the decision is made by feel rather than argument.
+;; Paragraph movement on M-n/M-p — the emacs-mcx carry-over, kept over the
+;; M-{ / M-} defaults by soak verdict (decision bead emacs-uaa.1).
 (keymap-global-set "M-n" #'forward-paragraph)
 (keymap-global-set "M-p" #'backward-paragraph)
 
