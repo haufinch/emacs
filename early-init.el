@@ -10,6 +10,13 @@
 ;; init.el, and without this the frame flashes white until it does.
 (push '(background-color . "#282a36") default-frame-alist)
 
+;; No macOS title bar or traffic-light buttons — emacs-plus ships the
+;; undecorated-round patch, which drops the bar while keeping rounded
+;; corners. If a future build lacks the patch, swap for plain
+;; (undecorated . t). Note: with no title bar the frame moves via window
+;; management (or M-x), not by dragging a bar.
+(push '(undecorated-round . t) default-frame-alist)
+
 ;; Font or theme changes should not resize the frame mid-session.
 (setq frame-inhibit-implied-resize t)
 

@@ -55,6 +55,10 @@
 
 ;;; Baseline defaults
 
+;; Default face at 14pt — the stock size is too small on this display.
+;; :height is 1/10 pt; tune here, not per-mode.
+(set-face-attribute 'default nil :height 140)
+
 ;; y/n instead of yes/no: fewer keystrokes on constant confirmations.
 (setq use-short-answers t)
 
