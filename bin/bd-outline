@@ -7,8 +7,10 @@
 # ○ ready  ◐ in progress  ● blocked (blockers listed inline).
 #
 # Usage: bd-outline [--width N] [--desc-lines N] [--status open|ready|blocked]
+#        [--color]
 #   --status open (default) shows everything; ready/blocked filter to one side,
 #   promoting orphaned children to top level.
+#   --color forces color on (default: auto — on for a terminal, off when piped).
 
 set -e
 setopt pipefail
@@ -16,6 +18,7 @@ setopt pipefail
 width=80
 desc_lines=4
 filter=open
+color=auto
 while (( $# )); do
   case $1 in
     --width) width=$2; shift 2 ;;
@@ -25,10 +28,17 @@ while (( $# )); do
         open|ready|blocked) filter=$2 ;;
         *) print -u2 "bd-outline: --status must be open, ready or blocked"; exit 1 ;;
       esac; shift 2 ;;
-    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --color) color=on; shift ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) print -u2 "bd-outline: unknown option $1"; exit 1 ;;
   esac
 done
+
+# color only when writing to a terminal (or forced), and never under NO_COLOR
+use_color=0
+if [[ $color == on ]] || { [[ $color == auto && -t 1 && -z $NO_COLOR ]] }; then
+  use_color=1
+fi
 
 tmp=$(mktemp -t bd-outline)
 trap 'rm -f "$tmp"' EXIT
@@ -86,11 +96,11 @@ jq -rs --arg filter "$filter" '
   | def bykey: map({id: ., pr: $all[.].priority}) | sort_by(.pr, .id) | map(.id);
     def bytopo: map({id: ., lv: ($LEVEL[.] // 0), pr: $all[.].priority})
       | sort_by(.lv, .pr, .id) | map(.id);
-    def marker($id): if $BLOCKED[$id] then "● "
-      elif $all[$id].status == "in_progress" then "◐ " else "○ " end;
+    def marker($id): if $BLOCKED[$id] then "●"
+      elif $all[$id].status == "in_progress" then "◐" else "○" end;
     def emit($id; $depth): $all[$id] as $d |
-      ("#B\t\($depth)\t" + marker($id) + $id
-        + "  P" + ($d.priority | tostring) + " · " + ($d.issue_type // "task")),
+      ("#B\t\($depth)\t" + marker($id) + "\t" + $id
+        + "\tP" + ($d.priority | tostring) + "\t" + ($d.issue_type // "task")),
       ("#T\t\($depth)\t" + $d.title),
       (if ($d.description // "") != ""
        then "#D\t\($depth)\t" + ($d.description | gsub("\\s+"; " ")) else empty end),
@@ -111,31 +121,48 @@ jq -rs --arg filter "$filter" '
       + " · blocked " + ([ $open[] | select($BLOCKED[.id]) ] | length | tostring)
       + (if $filter != "open" then " · showing " + $filter else "" end)),
     ($tops[] | emit(.; 0))
-' "$tmp" | awk -F'\t' -v width="$width" -v desc_lines="$desc_lines" '
-  # Greedy word wrap; emits prefix+line per row. Widths count bytes, so
+' "$tmp" | awk -F'\t' -v width="$width" -v desc_lines="$desc_lines" -v use_color="$use_color" '
+  BEGIN {
+    if (use_color) {
+      RS_ = "\033[0m"; DIM = "\033[2m"; BOLD = "\033[1m"
+      RED = "\033[31m"; GRN = "\033[32m"; YEL = "\033[33m"
+      MAG = "\033[35m"; CYN = "\033[36m"
+    }
+  }
+  # Greedy word wrap; emits prefix+line per row, col wrapping each emitted
+  # line so escape codes stay outside the width math. Widths count bytes, so
   # lines holding em-dashes come out slightly narrow — harmless.
-  function wrap(text, w, prefix, cap,    n, words, i, line, count) {
+  function wrap(text, w, prefix, cap, col,    n, words, i, line, count) {
     n = split(text, words, " "); line = ""; count = 0
     for (i = 1; i <= n; i++) {
       if (line == "") line = words[i]
       else if (length(line) + 1 + length(words[i]) <= w) line = line " " words[i]
       else {
         count++
-        if (cap && count == cap && i <= n) { print prefix line " …"; return }
-        print prefix line; line = words[i]
+        if (cap && count == cap && i <= n) { print prefix col line " …" RS_; return }
+        print prefix col line RS_; line = words[i]
       }
     }
-    if (line != "") print prefix line
+    if (line != "") print prefix col line RS_
   }
   function text(   t, i) { t = $3; for (i = 4; i <= NF; i++) t = t " " $i; return t }
   function pad(depth,   p, i) { p = ""; for (i = 0; i < depth * 2; i++) p = p " "; return p }
-  $1 == "#S" { rule = ""
-               for (i = 0; i < width - length(text()) - 4; i++) rule = rule "─"
-               print "── " text() " " rule; print "" }
-  $1 == "#B" { print pad($2) text() }
-  $1 == "#T" { wrap(text(), width - $2 * 2, pad($2), 0) }
-  $1 == "#D" { if (desc_lines > 0) wrap(text(), width - $2 * 2 - 2, pad($2) "  ", desc_lines) }
-  $1 == "#K" { wrap("⛔ " text(), width - $2 * 2 - 2, pad($2) "  ", 1) }
-  $1 == "#R" { wrap("↔ " text(), width - $2 * 2 - 2, pad($2) "  ", 1) }
+  # marker/priority/type colors, echoing bd list: red blocked, green ready,
+  # yellow in progress; hot priorities stand out, backlog fades, epics pop.
+  function mcol(m) { return m == "●" ? RED : (m == "◐" ? YEL : GRN) }
+  function pcol(pr) { return pr == "P0" ? BOLD RED : (pr == "P1" ? BOLD YEL : (pr == "P2" ? "" : DIM)) }
+  function tcol(ty) { return ty == "epic" ? MAG : DIM }
+  $1 == "#S" { raw = text(); rule = ""
+               for (i = 0; i < width - length(raw) - 4; i++) rule = rule "─"
+               if (use_color) {
+                 sub(/ready [0-9]+/, GRN "&" RS_, raw)
+                 sub(/blocked [0-9]+/, RED "&" RS_, raw)
+               }
+               print DIM "── " RS_ raw " " DIM rule RS_; print "" }
+  $1 == "#B" { print pad($2) mcol($3) $3 RS_ " " CYN $4 RS_ "  " pcol($5) $5 RS_ DIM " · " RS_ tcol($6) $6 RS_ }
+  $1 == "#T" { wrap(text(), width - $2 * 2, pad($2), 0, "") }
+  $1 == "#D" { if (desc_lines > 0) wrap(text(), width - $2 * 2 - 2, pad($2) "  ", desc_lines, DIM) }
+  $1 == "#K" { wrap("⛔ " text(), width - $2 * 2 - 2, pad($2) "  ", 1, RED) }
+  $1 == "#R" { wrap("↔ " text(), width - $2 * 2 - 2, pad($2) "  ", 1, DIM) }
   $1 == "#E" { print "" }
 '
