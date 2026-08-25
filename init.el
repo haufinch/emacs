@@ -134,6 +134,21 @@
 (use-package magit
   :bind ("C-x g" . magit-status))
 
+;;; Layer 5 core — R console (bead emacs-l82)
+
+;; ESS gives the R eval loop: M-x R for a console, C-RET to send the line or
+;; region and step. Runs R in a comint buffer — no terminal emulator needed,
+;; which is why this lands before the layer-4 backend decision (that choice
+;; gates only Claude Code). eglot/languageserver, the Air hook, the test
+;; panel and Quarto stay as separate beads under this layer.
+(use-package ess
+  :defer t
+  :init
+  ;; Start R in default-directory without prompting — launching from a
+  ;; worktree's buffer puts its console in that worktree, which is the
+  ;; one-console-per-worktree habit from the inventory.
+  (setq ess-ask-for-ess-directory nil))
+
 ;;; Keybinding trial
 
 ;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
