@@ -1,0 +1,141 @@
+#!/bin/zsh
+# bd-outline — vertical, narrow-panel-friendly view of open beads.
+#
+# One `bd export` call, jq for the graph logic, awk for word-wrapped
+# rendering. One block per open issue, children nested under their parent
+# (epic → features/decisions), top level in dependency order. Status markers:
+# ○ ready  ◐ in progress  ● blocked (blockers listed inline).
+#
+# Usage: bd-outline [--width N] [--desc-lines N] [--status open|ready|blocked]
+#   --status open (default) shows everything; ready/blocked filter to one side,
+#   promoting orphaned children to top level.
+
+set -e
+setopt pipefail
+
+width=80
+desc_lines=4
+filter=open
+while (( $# )); do
+  case $1 in
+    --width) width=$2; shift 2 ;;
+    --desc-lines) desc_lines=$2; shift 2 ;;
+    --status)
+      case $2 in
+        open|ready|blocked) filter=$2 ;;
+        *) print -u2 "bd-outline: --status must be open, ready or blocked"; exit 1 ;;
+      esac; shift 2 ;;
+    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) print -u2 "bd-outline: unknown option $1"; exit 1 ;;
+  esac
+done
+
+tmp=$(mktemp -t bd-outline)
+trap 'rm -f "$tmp"' EXIT
+
+# Single bulk call: export includes every issue with its typed dependency
+# edges, unlike list/show which cost one process launch per issue.
+bd export -o "$tmp" >/dev/null 2>&1
+
+# jq: index issues, compute the blocked set, emit tagged lines for awk.
+# bd's semantics: a blocks-edge blocks while the dependency is open; a
+# parent-child edge blocks while the parent is itself blocked. The reduce
+# over N passes is a fixpoint (a blocking chain is at most N long).
+jq -rs --arg filter "$filter" '
+  INDEX(.[]; .id) as $all
+  | [ .[] | select(.status == "open" or .status == "in_progress") ] as $open
+  | (INDEX($open[]; .id)) as $openIdx
+  | def hard: (.dependencies // [])[]
+      | select(.type == "blocks" or .type == "parent-child");
+    def rels: [ (.dependencies // [])[]
+      | select(.type == "related") | .depends_on_id ];
+    def parent: first((.dependencies // [])[]
+      | select(.type == "parent-child") | .depends_on_id) // null;
+    def dep_open($id): ($all[$id] // {}) | (.status // "closed") != "closed";
+    def title($id): ($all[$id] // {}) | (.title // "?");
+    ( reduce range(0; ($open | length) + 1) as $pass (
+        {};
+        . as $B
+        | reduce $open[] as $i (
+            $B;
+            if .[$i.id] then .
+            elif ([ $i | hard
+                    | if .type == "blocks" then dep_open(.depends_on_id)
+                      else ($B[.depends_on_id] // false) end ] | any)
+            then . + {($i.id): true}
+            else . end)
+      ) ) as $BLOCKED
+  | def shown($id): if $filter == "ready" then ($BLOCKED[$id] | not)
+      elif $filter == "blocked" then ($BLOCKED[$id] // false)
+      else true end;
+  # children grouped under their (open, shown) parent; the rest are top-level
+    ( reduce $open[] as $i ({};
+        ($i | parent) as $p
+        | if $p != null and $openIdx[$p] and shown($p) and shown($i.id)
+          then .[$p] += [$i.id] else . end)
+    ) as $KIDS
+  # topological level: 1 + longest chain of open blocks-edges beneath
+  | ( reduce range(0; ($open | length) + 1) as $pass (
+        {};
+        . as $L
+        | reduce $open[] as $i ($L;
+            .[$i.id] = 1 + ([ $i | hard | select(.type == "blocks")
+                              | .depends_on_id | select($openIdx[.] != null)
+                              | ($L[.] // 0) ] | max // 0))
+      ) ) as $LEVEL
+  | def bykey: map({id: ., pr: $all[.].priority}) | sort_by(.pr, .id) | map(.id);
+    def bytopo: map({id: ., lv: ($LEVEL[.] // 0), pr: $all[.].priority})
+      | sort_by(.lv, .pr, .id) | map(.id);
+    def marker($id): if $BLOCKED[$id] then "● "
+      elif $all[$id].status == "in_progress" then "◐ " else "○ " end;
+    def emit($id; $depth): $all[$id] as $d |
+      ("#B\t\($depth)\t" + marker($id) + $id
+        + "  P" + ($d.priority | tostring) + " · " + ($d.issue_type // "task")),
+      ("#T\t\($depth)\t" + $d.title),
+      (if ($d.description // "") != ""
+       then "#D\t\($depth)\t" + ($d.description | gsub("\\s+"; " ")) else empty end),
+      ( $d | hard
+        | select((.type == "blocks" and dep_open(.depends_on_id))
+                 or (.type == "parent-child" and ($BLOCKED[.depends_on_id] // false)))
+        | select(.depends_on_id != ($d | parent))   # nesting already shows the parent
+        | "#K\t\($depth)\t" + .depends_on_id + " — " + title(.depends_on_id) ),
+      ( $d | rels[] | "#R\t\($depth)\t" + . + " — " + title(.) ),
+      "#E\t\($depth)",
+      (($KIDS[$id] // []) | bykey | .[] | emit(.; $depth + 1));
+    ([ $open[] | select(shown(.id))
+       | select((parent == null) or (($openIdx[parent] // null) == null)
+                or ((shown(parent)) | not)) | .id ]
+      | bytopo) as $tops
+  | ("#S\t0\topen \($open | length) · ready "
+      + ([ $open[] | select($BLOCKED[.id] | not) ] | length | tostring)
+      + " · blocked " + ([ $open[] | select($BLOCKED[.id]) ] | length | tostring)
+      + (if $filter != "open" then " · showing " + $filter else "" end)),
+    ($tops[] | emit(.; 0))
+' "$tmp" | awk -F'\t' -v width="$width" -v desc_lines="$desc_lines" '
+  # Greedy word wrap; emits prefix+line per row. Widths count bytes, so
+  # lines holding em-dashes come out slightly narrow — harmless.
+  function wrap(text, w, prefix, cap,    n, words, i, line, count) {
+    n = split(text, words, " "); line = ""; count = 0
+    for (i = 1; i <= n; i++) {
+      if (line == "") line = words[i]
+      else if (length(line) + 1 + length(words[i]) <= w) line = line " " words[i]
+      else {
+        count++
+        if (cap && count == cap && i <= n) { print prefix line " …"; return }
+        print prefix line; line = words[i]
+      }
+    }
+    if (line != "") print prefix line
+  }
+  function text(   t, i) { t = $3; for (i = 4; i <= NF; i++) t = t " " $i; return t }
+  function pad(depth,   p, i) { p = ""; for (i = 0; i < depth * 2; i++) p = p " "; return p }
+  $1 == "#S" { rule = ""
+               for (i = 0; i < width - length(text()) - 4; i++) rule = rule "─"
+               print "── " text() " " rule; print "" }
+  $1 == "#B" { print pad($2) text() }
+  $1 == "#T" { wrap(text(), width - $2 * 2, pad($2), 0) }
+  $1 == "#D" { if (desc_lines > 0) wrap(text(), width - $2 * 2 - 2, pad($2) "  ", desc_lines) }
+  $1 == "#K" { wrap("⛔ " text(), width - $2 * 2 - 2, pad($2) "  ", 1) }
+  $1 == "#R" { wrap("↔ " text(), width - $2 * 2 - 2, pad($2) "  ", 1) }
+  $1 == "#E" { print "" }
+'
