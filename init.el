@@ -68,6 +68,12 @@
 ;; Audible bell on C-g is an irritation, not information.
 (setq ring-bell-function #'ignore)
 
+;; Automatic splits (R console, magit, help) open beside the current window,
+;; not below it: never stack on height, allow side-by-side once the frame
+;; fits two ~60-column windows.
+(setq split-height-threshold nil)
+(setq split-width-threshold 120)
+
 ;; Reopen files at the point they were left — matches editor muscle memory.
 (save-place-mode 1)
 
