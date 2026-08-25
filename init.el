@@ -84,6 +84,41 @@
   (dired-noselect default-directory))
 (setq initial-buffer-choice #'my/initial-dired-buffer)
 
+;;; Layer 2 — navigation / completion (bead emacs-87m)
+
+;; Vertical minibuffer completion; the inventory's command-prompt record
+;; (partial match, ~10 visible candidates, movement keys in the list) is this
+;; UI. vertico-count already defaults to 10 — no override needed.
+(use-package vertico
+  :init (vertico-mode 1))
+
+;; Space-separated pattern matching in any order — the "partial matching" the
+;; inventory records. basic stays as fallback so exact prefixes still win.
+(use-package orderless
+  :custom
+  (completion-styles '(orderless basic))
+  (completion-category-overrides '((file (styles basic partial-completion)))))
+
+;; Annotations (docstrings, file sizes, keybindings) beside candidates.
+(use-package marginalia
+  :init (marginalia-mode 1))
+
+;; Buffer switching with preview — the "navigate processes and open new
+;; buffers" need from the layer-1 soak — and in-buffer line search. More
+;; consult commands only when a concrete need names them.
+(use-package consult
+  :bind (("C-x b" . consult-buffer)
+         ("C-s" . consult-line)))
+
+;; In-buffer completion popup; corfu-auto gives the as-you-type feel the
+;; Positron habit expects. Built-in completion-at-point has no popup UI.
+(use-package corfu
+  :custom (corfu-auto t)
+  :init (global-corfu-mode 1))
+
+;; embark deliberately omitted: it changes workflow rather than feel, and
+;; the layer-2 verdict should not depend on learning it.
+
 ;;; Keybinding trial
 
 ;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
