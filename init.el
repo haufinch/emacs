@@ -123,6 +123,17 @@
 ;; embark deliberately omitted: it changes workflow rather than feel, and
 ;; the layer-2 verdict should not depend on learning it.
 
+;;; Layer 3 — project + git (bead emacs-mtw)
+
+;; project.el is built in; nothing to configure yet. The worktree helper
+;; (bead emacs-mtw.2) and per-worktree windows (emacs-mtw.1) come next.
+
+;; magit: the inventory's git loop (status, diffs, discard/commit/pull/push)
+;; is stock magit, and edamagit muscle memory transfers. Built-in vc.el
+;; covers less of that surface, hence the package.
+(use-package magit
+  :bind ("C-x g" . magit-status))
+
 ;;; Keybinding trial
 
 ;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
