@@ -160,6 +160,15 @@
 ;; shift-selection; acceptable for a C-SPC mark user, revisit if missed.
 (windmove-default-keybindings)
 
+;; ace-window: M-o jumps to any window by home-row label (direct jump when
+;; only two windows exist). Kept alongside windmove by explicit preference —
+;; the key placement feels more natural than shifted arrows.
+(use-package ace-window
+  :bind ("M-o" . ace-window)
+  :custom
+  ;; Labels on the home row instead of the default number keys.
+  (aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l)))
+
 ;;; Keybinding trial
 
 ;; TRIAL (decision bead emacs-uaa.1): the Positron/emacs-mcx habit is alt+n/p
