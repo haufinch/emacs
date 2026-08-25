@@ -84,6 +84,15 @@
 ;; Recently opened files, for C-x C-r now and consult sources later.
 (recentf-mode 1)
 
+;; Launching the binary directly (the en alias) bypasses LaunchServices, so
+;; macOS leaves keyboard focus with the terminal — claim it once startup
+;; finishes. Named function so it can be removed cleanly.
+(defun my/focus-initial-frame ()
+  "Give the initial frame keyboard focus (skipped in batch/daemon)."
+  (when (display-graphic-p)
+    (select-frame-set-input-focus (selected-frame))))
+(add-hook 'after-init-hook #'my/focus-initial-frame)
+
 ;; Land in a folder view of the launch directory instead of *scratch* —
 ;; opening a project should show the project. Named function, not a lambda,
 ;; so it can be advised or removed cleanly. Also applies to a bare
