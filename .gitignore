@@ -14,3 +14,4 @@ graph.html
 elpa/
 etc/
 var/
+*.elc

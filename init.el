@@ -215,6 +215,22 @@ rig names binaries by major.minor, some with an -arm64 suffix
   ;; Labels on the home row instead of the default number keys.
   (aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l)))
 
+;;; OpenSpec (bead emacs-xj5)
+
+;; markdown-mode: Emacs ships no markdown major mode; this is the ecosystem
+;; standard, and openspec-mode derives from its gfm-mode.
+(use-package markdown-mode
+  :defer t)
+
+;; Hand-written modules live in lisp/ from here on (first: openspec-mode).
+(add-to-list 'load-path (expand-file-name "lisp/" user-emacs-directory))
+
+;; OpenSpec documents (openspec/**/*.md) are structured markdown — specs,
+;; deltas and task lists; see lisp/openspec-mode.el.
+(autoload 'openspec-mode "openspec-mode"
+  "Major mode for OpenSpec markdown." t)
+(add-to-list 'auto-mode-alist '("/openspec/.*\.md\'" . openspec-mode))
+
 ;;; Keybindings
 
 ;; Paragraph movement on M-n/M-p — the emacs-mcx carry-over, kept over the
